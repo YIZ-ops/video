@@ -123,12 +123,12 @@ public class VideosController {
      * @param currentPage
      * @return
      */
-    @PostMapping("/showAll")
-    public JsonResult showAll(Integer currentPage) {
+    @PostMapping("/showVideos")
+    public JsonResult showVideos(Integer currentPage, Integer loginUserId) {
         if (currentPage == null) {
             currentPage = 1;
         }
-        PagedResult result = videosService.getAllVideos(currentPage);
+        PagedResult result = videosService.getVideos(currentPage, loginUserId);
         return JsonResult.ok(result);
     }
 

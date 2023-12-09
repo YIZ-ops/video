@@ -1,12 +1,12 @@
 package io.renren.modules.my.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.renren.modules.my.entity.UsersEntity;
 import io.renren.modules.my.entity.UsersLikeVideosEntity;
 import io.renren.modules.my.service.UsersLikeVideosService;
+import io.renren.modules.my.service.UsersService;
 import io.renren.modules.my.utils.PagedResult;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,16 +22,15 @@ import io.renren.common.utils.Query;
 import io.renren.modules.my.dao.VideosDao;
 import io.renren.modules.my.entity.VideosEntity;
 import io.renren.modules.my.service.VideosService;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 
 @Service("videosService")
-@CacheConfig(cacheNames = {"VideoServiceImpl"})
 public class VideosServiceImpl extends ServiceImpl<VideosDao, VideosEntity> implements VideosService {
 
     @Autowired
     UsersLikeVideosService usersLikeVideosService;
+    @Autowired
+    UsersService usersService;
 
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
@@ -43,16 +42,41 @@ public class VideosServiceImpl extends ServiceImpl<VideosDao, VideosEntity> impl
         return new PageUtils(page);
     }
 
-    // 运行当前事务，如果当前没有事务，就新建一个事务
-    @Transactional(propagation = Propagation.REQUIRED)
     @Override
-    // 方法执行后清空所有缓存
-    @CacheEvict(allEntries = true)
-    public PagedResult getAllVideos(Integer currentPage) {
+    public PagedResult getVideos(Integer currentPage, Integer loginUserId) {
         // 构造分页对象
         Page<VideosEntity> page = new Page<>(currentPage, 5);
-        // 查询所有视频
-        IPage<VideosEntity> videosPage = this.page(page, new QueryWrapper<>());
+        IPage<VideosEntity> videosPage;
+
+        if (loginUserId != null) {
+            UsersEntity byId = usersService.getById(loginUserId);
+            long ratio = byId.getRatio();
+            long kind = byId.getKind();
+
+            if (ratio == 3) {
+                // 查询所有视频
+                videosPage = this.page(page, new QueryWrapper<>());
+            } else {
+                // 查询推荐视频列表，包括类型为 kind 的视频，以及其他类型的视频
+                List<VideosEntity> recommendedVideos = this.list(new QueryWrapper<VideosEntity>()
+                        .eq("kind", kind)
+                        .last("limit " + ratio));
+
+                recommendedVideos.addAll(this.list(new QueryWrapper<VideosEntity>()
+                        .ne("kind", kind)
+                        .last("limit " + (10 - ratio))));
+
+                videosPage = new Page<>();
+                videosPage.setRecords(recommendedVideos);
+                videosPage.setTotal(recommendedVideos.size());
+                videosPage.setSize(5);
+                videosPage.setCurrent(currentPage);
+            }
+        } else {
+            // 查询所有视频
+            videosPage = this.page(page, new QueryWrapper<>());
+        }
+
         // 自定义分页结果
         PagedResult pagedResult = new PagedResult();
         pagedResult.setPage(currentPage); // 设置当前页数

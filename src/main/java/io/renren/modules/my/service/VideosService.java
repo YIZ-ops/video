@@ -27,7 +27,7 @@ public interface VideosService extends IService<VideosEntity> {
      * @param currentPage  当前页数
      * @return 封装分页后的数据格式
      */
-    PagedResult getAllVideos(Integer currentPage);
+    PagedResult getVideos(Integer currentPage, Integer loginUserId);
 
     PagedResult queryMyLikeVideos(Long userId, Integer page, int pageSize);
 
